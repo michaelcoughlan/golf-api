@@ -1,4 +1,4 @@
-import express, { Express } from 'express'
+import express, { Express, Request, Response } from 'express'
 import { config } from 'dotenv';
 
 config();
@@ -16,7 +16,11 @@ app.use(express.json());
 // Add Firestore to routes so it can validate sessions and fetch data
 app.use(addFirestore);
 
-app.use('/games', gamesRouter);
+app.get('/', (req: Request, res: Response) => {
+    res.send('Welcome to the Squid Golf API.');
+});
+
+app.use('/api/games', gamesRouter);
 
 app.listen(port, () => {
     console.log(`App started on port: ${port}`);
