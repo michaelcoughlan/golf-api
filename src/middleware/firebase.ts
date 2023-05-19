@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 
 import { ErrorCodes, ErrorMessages } from '../types/Error';
 
-const serviceAccount = require('../../config/service-account.json');
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT ?? '');
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
