@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 
 import { ErrorCodes, ErrorMessages } from '../types/Error';
-import { Game, GameRequestPayload, Hole, HolePayload, HoleScore, IndexedPlayer, Player } from '../types/Game';
+import { BaseGame, Game, GamePayload } from '../types/Game';
+import { Hole, HolePayload, HoleScore } from '../types/Hole';
+import { BasePlayer, IndexedPlayer } from '../types/Player';
+import { aggregatePlayerInformation } from '../utils';
 
 export class GamesController {
     /**
@@ -19,7 +22,17 @@ export class GamesController {
             const gamesSnapshot = await gamesRef.get();
 
             // Respond with the data from each document
-            res.status(200).json(gamesSnapshot.docs.map((doc) => doc.data()));
+            const baseGames: BaseGame[] = gamesSnapshot.docs.map((doc) => {
+                const tempGame = doc.data();
+
+                return {
+                    date: tempGame.date,
+                    id: doc.id,
+                    title: tempGame.title,
+                };
+            });
+
+            res.status(200).json(baseGames);
         } catch (error) {
             console.error('Error fetching all games', error);
             res.status(ErrorCodes.ServerError).send(ErrorMessages.ServerError);
@@ -47,7 +60,18 @@ export class GamesController {
                 return res.status(ErrorCodes.NotFound).send(ErrorMessages.NotFound);
             }
 
-            res.json(gameSnapshot.data());
+            // If the data in the snapshot cannot be recovered, return an error
+            const gameData = gameSnapshot.data();
+            if (!gameData) {
+                console.error('Error occurred with data function.');
+                return res.status(ErrorCodes.ServerError).send(ErrorMessages.ServerError);
+            }
+
+            const { holes, players } = aggregatePlayerInformation(gameData as Game);
+            gameData.holes = holes;
+            gameData.players = players;
+
+            res.json(gameData);
         } catch (error) {
             console.error('Error fetching game', error);
             res.status(ErrorCodes.ServerError).send(ErrorMessages.ServerError);
@@ -65,18 +89,22 @@ export class GamesController {
      */
     static async createGame(req: Request, res: Response) {
         try {
-            const { numberHoles, players, title } = req.body as GameRequestPayload;
+            const { numberHoles, players, title } = req.body as GamePayload;
             const now = new Date().toISOString();
             const userId = req.user.uid;
 
             // Validate the request body
-            if ((!numberHoles || numberHoles < 0) || !players || !title) {
+            if (
+                (!numberHoles || numberHoles < 0) ||
+                (!players || players.length < 1) ||
+                !title
+            ) {
                 return res.status(ErrorCodes.BadRequest).send(ErrorMessages.BadRequest);
             }
 
             // Add the players and their index in the scorecard
             const indexedPlayers: IndexedPlayer[] = [];
-            players.forEach((player: Player, index: number) => {
+            players.forEach((player: BasePlayer, index: number) => {
                 indexedPlayers.push({
                     ...player,
                     scorecardIndex: index,
